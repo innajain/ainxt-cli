@@ -26,7 +26,12 @@ use std::time::{Duration, Instant};
 /// and payment details into forms it clicks — capability the stated goal,
 /// "stay logged in", does not need. Copying them widens the blast radius of
 /// every later mistake for no benefit.
-const CREDENTIAL_FILES: &[&str] = &["Cookies"];
+///
+/// The location is not the same everywhere: Chrome moved the cookie store
+/// under `Network/` and macOS profiles created before that move still keep it
+/// at the profile root. Both are tried, and the relative path is preserved so
+/// the copy lands where that Chrome will look for it.
+const CREDENTIAL_FILES: &[&str] = &["Network/Cookies", "Cookies"];
 
 /// Where Chrome keeps the real profile, per platform.
 fn default_user_data_dir() -> Option<PathBuf> {
@@ -156,16 +161,29 @@ pub fn seed_profile(target_user_data_dir: &Path) -> Result<()> {
         if !from.is_file() {
             continue;
         }
-        match std::fs::copy(&from, target.join(name)) {
+        let to = target.join(name);
+        if let Some(parent) = to.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            tracing::warn!("could not create {} for the profile seed: {e}", parent.display());
+            continue;
+        }
+        match std::fs::copy(&from, &to) {
             Ok(_) => copied += 1,
             Err(e) => tracing::warn!("could not seed profile file {name}: {e}"),
+        }
+        // Chrome keeps the cookie store in one place per profile; once one
+        // candidate path has been copied the rest are stale duplicates.
+        if copied > 0 {
+            break;
         }
     }
 
     if copied == 0 {
         return Err(ChromeError::ProfileSeed {
             source_dir: source.display().to_string(),
-            detail: "found the profile but none of its credential files were readable".to_owned(),
+            detail: "found the profile but its cookie store was not where Chrome usually keeps it"
+                .to_owned(),
         });
     }
     tracing::info!("seeded {copied} credential file(s) into {}", target.display());
@@ -211,8 +229,14 @@ pub async fn launch(config: &LaunchConfig) -> Result<LaunchedChrome> {
     let binary = find_chrome_binary()?;
 
     let first_use = !config.user_data_dir.join("Default").is_dir();
-    if first_use && config.seed == ProfileSeed::FromDefaultProfile {
-        seed_profile(&config.user_data_dir)?;
+    if first_use
+        && config.seed == ProfileSeed::FromDefaultProfile
+        && let Err(e) = seed_profile(&config.user_data_dir)
+    {
+        // Seeding is an enhancement, not a precondition. A browser with no
+        // carried-over cookies still works — the user is simply signed out —
+        // so a profile that cannot be read must not stop Chrome launching.
+        tracing::warn!("could not seed the Chrome profile ({e}); starting signed out");
     }
     std::fs::create_dir_all(&config.user_data_dir)?;
 
@@ -338,7 +362,18 @@ mod tests {
 
     #[test]
     fn the_seed_copies_cookies_only_not_passwords_or_cards() {
-        assert_eq!(CREDENTIAL_FILES, &["Cookies"]);
+        assert!(
+            CREDENTIAL_FILES
+                .iter()
+                .all(|f| f.ends_with("Cookies")),
+            "the seed must not carry passwords or autofill data: {CREDENTIAL_FILES:?}"
+        );
+    }
+
+    #[test]
+    fn both_known_cookie_store_locations_are_tried() {
+        assert!(CREDENTIAL_FILES.contains(&"Network/Cookies"));
+        assert!(CREDENTIAL_FILES.contains(&"Cookies"));
     }
 
     #[test]
