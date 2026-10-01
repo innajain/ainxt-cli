@@ -277,6 +277,15 @@ fn default_ainxt_build_toolset() -> ToolServerConfig {
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
             (&ainxt_build::UpdateGoalTool).into(),
+            // Chrome. Present by default rather than only on `browser-use`:
+            // a tool that needs a flag nobody remembers is a tool that does
+            // not exist. Chrome is launched lazily on the first call, so a
+            // session that never browses pays only for the tool definitions.
+            (&ainxt_build::ChromeNavigateTool).into(),
+            (&ainxt_build::ChromeReadPageTool).into(),
+            (&ainxt_build::ChromeClickTool).into(),
+            (&ainxt_build::ChromeTypeTool).into(),
+            (&ainxt_build::ChromeScreenshotTool).into(),
         ],
         behavior_preset: None,
     }
@@ -410,6 +419,12 @@ fn ainxt_build_plan_toolset() -> ToolServerConfig {
             (&ainxt_build::EnterPlanModeTool).into(),
             (&ainxt_build::ExitPlanModeTool).into(),
             (&ainxt_build::AskUserQuestionTool).into(),
+            // Chrome. See the note in `default_ainxt_build_toolset`.
+            (&ainxt_build::ChromeNavigateTool).into(),
+            (&ainxt_build::ChromeReadPageTool).into(),
+            (&ainxt_build::ChromeClickTool).into(),
+            (&ainxt_build::ChromeTypeTool).into(),
+            (&ainxt_build::ChromeScreenshotTool).into(),
         ],
         behavior_preset: None,
     }
@@ -476,6 +491,12 @@ fn ainxt_build_plan_no_subagents_toolset() -> ToolServerConfig {
             (&ainxt_build::EnterPlanModeTool).into(),
             (&ainxt_build::ExitPlanModeTool).into(),
             (&ainxt_build::AskUserQuestionTool).into(),
+            // Chrome. See the note in `default_ainxt_build_toolset`.
+            (&ainxt_build::ChromeNavigateTool).into(),
+            (&ainxt_build::ChromeReadPageTool).into(),
+            (&ainxt_build::ChromeClickTool).into(),
+            (&ainxt_build::ChromeTypeTool).into(),
+            (&ainxt_build::ChromeScreenshotTool).into(),
         ],
         behavior_preset: None,
     }
@@ -1557,16 +1578,9 @@ impl AgentDefinition {
     /// as them. The prompt says so explicitly, because a page the agent
     /// opens can carry text aimed at the agent itself.
     pub fn browser_use() -> Self {
-        let mut tool_config = default_ainxt_build_toolset();
-        tool_config.tools.push((&ainxt_build::ChromeNavigateTool).into());
-        tool_config.tools.push((&ainxt_build::ChromeReadPageTool).into());
-        tool_config.tools.push((&ainxt_build::ChromeClickTool).into());
-        tool_config.tools.push((&ainxt_build::ChromeTypeTool).into());
-        tool_config.tools.push((&ainxt_build::ChromeScreenshotTool).into());
         Self {
             prompt_mode: PromptMode::Full,
             agents_md: false,
-            tool_config,
             prompt_body: Some(
                 "You are a web browsing agent. You can navigate, interact with, and \
                  extract information from web pages. Use the available browsing tools \

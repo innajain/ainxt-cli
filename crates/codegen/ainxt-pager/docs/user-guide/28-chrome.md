@@ -133,15 +133,24 @@ an already-loaded page and is a genuine read.
 
 ## Usage
 
-The `browser-use` agent carries both tools:
+The Chrome tools are in the default toolset, so plain `ainxt` has them:
 
 ```sh
-ainxt --agent browser-use
+ainxt
 ```
 
-Chrome launches on the first tool call, not at session start, and the same
-window serves every later call so tabs and history persist across the
-conversation.
+`--agent browser-use` still exists and adds a prompt focused on browsing, but
+it is no longer required to reach the tools.
+
+Chrome launches on the first tool call, not at session start, so a session
+that never browses costs only the tool definitions. The same window serves
+every later call, so tabs and history persist across the conversation.
+
+**Inline images are macOS/Linux only.** The TUI renders screenshots through the
+Kitty graphics protocol (Kitty, Ghostty, WezTerm, Warp). On Windows, ConPTY
+strips those escape sequences before they reach the terminal, so the image
+never appears — the model still receives it. Use `save_path` there and open the
+file.
 
 ---
 
